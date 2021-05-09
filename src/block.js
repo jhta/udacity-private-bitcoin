@@ -17,7 +17,7 @@ class Block {
   constructor(data) {
     this.hash = null; // Hash of the block
     this.height = 0; // Block Height (consecutive number of each block)
-    this.body = Buffer(JSON.stringify(data)).toString("hex"); // Will contain the transactions stored in the block, by default it will encode the data
+    this.body = Buffer.from(JSON.stringify(data)).toString("hex"); // Will contain the transactions stored in the block, by default it will encode the data
     this.time = 0; // Timestamp for the Block creation
     this.previousBlockHash = null; // Reference to the previous Block Hash
   }
@@ -36,15 +36,23 @@ class Block {
    */
   validate() {
     let self = this;
+    const block = { ...self };
+    block.hash = null;
     return new Promise((resolve, reject) => {
       // Save in auxiliary variable the current block hash
-      const currentHash = this.hash;
+      const currentHash = self.hash;
+
       // Recalculate the hash of the Block
-      const recalculatedHash = SHA256(self);
+      const recalculatedHash = SHA256(JSON.stringify(block)).toString();
+      // self.hash = recalculatedHash;
+      console.log("current", currentHash);
+      console.log("next", recalculatedHash);
+      console.log("self", self);
       // Comparing if the hashes changed
       const isHashValid = currentHash === recalculatedHash;
       // Returning the Block is not valid
-      return isHasValid;
+      //   return isHashValid;
+      resolve(isHashValid);
       // Returning the Block is valid
     });
   }
@@ -61,8 +69,17 @@ class Block {
   getBData() {
     // Getting the encoded data saved in the Block
     // Decoding the data to retrieve the JSON representation of the object
+    const self = this;
     // Parse the data to an object to be retrieve.
     // Resolve with the data if the object isn't the Genesis block
+    return new Promise((resolve, reject) => {
+      if (self.previousBlockHash === null) {
+        return reject("error: genesis block");
+      }
+
+      const data = JSON.parse(hex2ascii(this.body));
+      resolve(data);
+    });
   }
 }
 
