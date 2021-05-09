@@ -15,6 +15,8 @@ const e = require("express");
 
 const getTime = () => parseInt(new Date().getTime().toString().slice(0, -3));
 
+const getTimeDiffByMinutes = (a, b) => Math.abs((a - b) / 60);
+
 class Blockchain {
   /**
    * Constructor of the class, you will need to setup your chain array and the height
@@ -117,6 +119,25 @@ class Blockchain {
     return new Promise(async (resolve, reject) => {
       const messageTime = parseInt(message.split(":")[1]);
       const currentTime = getTime();
+      const diff = getTimeDiffByMinutes(messageTime, currentTime);
+
+      if (diff >= 5) {
+        return reject("time is over 5min");
+      }
+
+      let verified = false;
+      try {
+        verified = bitcoinMessage.verify(message, address, signature, null, true);
+      } catch (err) {
+        reject(err);
+      }
+      if (!verified) {
+        return reject("verification failed");
+      }
+
+      const block = new BlockClass.Block({ star, owner: address });
+      self._addBlock(block);
+      resolve(block);
     });
   }
 
@@ -128,7 +149,12 @@ class Blockchain {
    */
   getBlockByHash(hash) {
     let self = this;
-    return new Promise((resolve, reject) => {});
+    return new Promise((resolve, reject) => {
+      if (!self.length > 1) return reject("Blockchain is empty");
+      const block = self.chain.find((b) => b.hash === hash);
+
+      resolve(block || null);
+    });
   }
 
   /**
@@ -156,8 +182,19 @@ class Blockchain {
    */
   getStarsByWalletAddress(address) {
     let self = this;
-    let stars = [];
-    return new Promise((resolve, reject) => {});
+    return new Promise(async (resolve, reject) => {
+      if (self.height === 0) return resolve([]);
+
+      const promises = self.chain.slice(1).map((b) => b.getBData());
+
+      try {
+        const stars = await Promise.all(promises);
+        const filteredStars = stars.filter((b) => b.owner === address);
+        resolve(filteredStars);
+      } catch (err) {
+        resolve(err);
+      }
+    });
   }
 
   /**
@@ -171,12 +208,10 @@ class Blockchain {
     let errorLog = [];
 
     return new Promise(async (resolve, reject) => {
-      console.log("the chain", self.chain.length);
       for (let i = 0; i < self.chain.length; i++) {
         const isGenesis = i === 0;
         const previousBlock = !isGenesis ? self.chain[i - 1] : null;
         const block = self.chain[i];
-        // console.log("block to validate", block);
 
         if (isGenesis) {
           const isValid = await block.validate();
@@ -193,11 +228,11 @@ class Blockchain {
         recalculatedPreviousBlock.hash = SHA256(JSON.stringify(recalculatedPreviousBlock)).toString();
 
         if (recalculatedPreviousBlock.hash !== block.previousBlockHash) {
-          errorLog.push(`the block ${previousBlock.hash} breaks the change`);
+          errorLog.push(`the block ${previousBlock.hash} with height: ${previousBlock.height} breaks the change`);
         } else {
           const isValid = await block.validate();
           if (!isValid) {
-            errorLog.push(`${i}  ${block.hash} is corrupted`);
+            errorLog.push(`the block with height: ${i}  and hash: ${block.hash} is corrupted`);
           }
         }
       }
