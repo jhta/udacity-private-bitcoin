@@ -79,7 +79,17 @@ class Blockchain {
       self.height++;
       self.chain.push(block);
 
-      resolve(block);
+      try {
+        const errorLog = await self.validateChain();
+
+        if (errorLog.length) {
+          return reject(errorLog);
+        }
+
+        return resolve(block);
+      } catch (err) {
+        return reject(err);
+      }
     });
   }
 
